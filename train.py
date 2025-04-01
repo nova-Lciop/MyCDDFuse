@@ -36,7 +36,7 @@ model_str = 'CDDFuse'
 
 # . Set the hyper-parameters for training
 num_epochs = 120 # total epoch #总的训练轮数
-epoch_gap = 0  # epoches of Phase I 第一阶段的训练轮数
+epoch_gap = 40  # epoches of Phase I 第一阶段的训练轮数
 #40
 
 

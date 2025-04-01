@@ -7,6 +7,9 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from einops import rearrange
 import numpy as np
 
+from newmodel import AttentionTSSA
+
+
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     """
     Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
@@ -307,12 +310,15 @@ class TransformerBlock(nn.Module): # 卷积之后的Transfrom之后的块
         super(TransformerBlock, self).__init__()
 
         self.norm1 = LayerNorm(dim, LayerNorm_type)# 归一化处理并恢复到4维
-        self.attn = Attention(dim, num_heads, bias) #经过一个自注意力
+        # self.attn = Attention(dim, num_heads, bias) #经过一个自注意力
+        self.attn = AttentionTSSA(dim,num_heads,bias) # 换成令牌统计自注意力模块,就是这个新加的模块坏了
         self.norm2 = LayerNorm(dim, LayerNorm_type)# 归一化处理并恢复到4维
         self.ffn = FeedForward(dim, ffn_expansion_factor, bias)
 
     def forward(self, x):
-        x = x + self.attn(self.norm1(x))
+        i1 = self.norm1(x)
+        i2 = self.attn(i1) # i1:（1，64，128，128）
+        x = x + i2# (经过注意力前后张量形状不变)
         x = x + self.ffn(self.norm2(x))
 
         return x
