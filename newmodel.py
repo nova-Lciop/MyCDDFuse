@@ -160,7 +160,7 @@ class AttentionTSSA(nn.Module):
         # 在通道维度上分成多头
         # [batch_size, seq_length, dim] ===> [batch_size, heads, seq_length, head_dim]
         # torch.Size([1, 784, 64])      ===> torch.Size([1, 8, 784, 8])
-        b, c, h, w = x.shape
+        b, c, gao, kuan = x.shape
 
         # print(type(w))
         x = to_3d(x)
@@ -190,7 +190,7 @@ class AttentionTSSA(nn.Module):
         out = rearrange(out, 'b h n d -> b n (h d)')
         # 将输出通过输出投影层
         out = self.to_out(out)
-        return to_4d(out,128,128)
+        return to_4d(out,gao,kuan)
 
 def to_3d(x):
     return rearrange(x, 'b c h w -> b (h w) c')
