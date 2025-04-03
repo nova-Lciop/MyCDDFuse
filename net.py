@@ -127,6 +127,44 @@ class BaseFeatureExtraction(nn.Module):#Lite Transformer，Encode中的base
         return x
 
 
+# class InvertedResidualBlock(nn.Module):
+#     def __init__(self, inp, oup, expand_ratio):
+#         super(InvertedResidualBlock, self).__init__()
+#         hidden_dim = int(inp * expand_ratio)
+#         self.bottleneckBlock = nn.Sequential(
+#             # pw
+#             nn.Conv2d(inp, hidden_dim, 1, bias=False),
+#             # nn.BatchNorm2d(hidden_dim),
+#             nn.ReLU6(inplace=True),
+#             # dw
+#             nn.ReflectionPad2d(1),
+#             nn.Conv2d(hidden_dim, hidden_dim, 3, groups=hidden_dim, bias=False),
+#             # nn.BatchNorm2d(hidden_dim),
+#             nn.ReLU6(inplace=True),
+#             # pw-linear
+#             nn.Conv2d(hidden_dim, oup, 1, bias=False),
+#             # nn.BatchNorm2d(oup),
+#         )
+#     def forward(self, x):
+#         return self.bottleneckBlock(x)
+
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
 class InvertedResidualBlock(nn.Module):
     def __init__(self, inp, oup, expand_ratio):
         super(InvertedResidualBlock, self).__init__()
@@ -134,19 +172,30 @@ class InvertedResidualBlock(nn.Module):
         self.bottleneckBlock = nn.Sequential(
             # pw
             nn.Conv2d(inp, hidden_dim, 1, bias=False),
-            # nn.BatchNorm2d(hidden_dim),
+            nn.BatchNorm2d(hidden_dim),
             nn.ReLU6(inplace=True),
             # dw
             nn.ReflectionPad2d(1),
             nn.Conv2d(hidden_dim, hidden_dim, 3, groups=hidden_dim, bias=False),
-            # nn.BatchNorm2d(hidden_dim),
+            nn.BatchNorm2d(hidden_dim),
             nn.ReLU6(inplace=True),
+            # SE layer
+            SELayer(hidden_dim),
             # pw-linear
             nn.Conv2d(hidden_dim, oup, 1, bias=False),
-            # nn.BatchNorm2d(oup),
+            nn.BatchNorm2d(oup),
         )
+        # 残差连接
+        if inp == oup:
+            self.residual_connection = True
+        else:
+            self.residual_connection = False
+
     def forward(self, x):
-        return self.bottleneckBlock(x)
+        out = self.bottleneckBlock(x)
+        if self.residual_connection:
+            out = out + x
+        return out
 
 class DetailNode(nn.Module):
     def __init__(self):
