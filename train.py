@@ -36,7 +36,7 @@ model_str = 'CDDFuse'
 
 # . Set the hyper-parameters for training
 num_epochs = 120 # total epoch #总的训练轮数
-epoch_gap = 40  # epoches of Phase I 第一阶段的训练轮数
+epoch_gap = 0  # epoches of Phase I 第一阶段的训练轮数
 #40
 
 
@@ -84,7 +84,7 @@ Loss_ssim = kornia.losses.SSIMLoss(11, reduction='mean')
 # loss function，这里改了一下，
 
 # data loader
-trainloader = DataLoader(H5Dataset(r"data/MSRS_train_imgsize_128_stride_200.h5"),
+trainloader = DataLoader(H5Dataset(r"data/MSRS_train_imgsize_128_stride_200_mask.h5"),
                          batch_size=batch_size,
                          shuffle=True,
                          num_workers=0)
@@ -108,7 +108,7 @@ print("开始训练的时间：", start_time)
 
 for epoch in range(num_epochs):
     ''' train '''
-    for i, (data_VIS, data_IR) in enumerate(loader['train']): #枚举红外和可见光数据
+    for i, (data_VIS, data_IR,data_MASK) in enumerate(loader['train']): #枚举红外和可见光数据
         data_VIS, data_IR = data_VIS.cuda(), data_IR.cuda()
         DIDF_Encoder.train()# 训练模式
         DIDF_Decoder.train()
@@ -155,10 +155,11 @@ for epoch in range(num_epochs):
         else:  #Phase II
             feature_V_B, feature_V_D, feature_V = DIDF_Encoder(data_VIS)
             feature_I_B, feature_I_D, feature_I = DIDF_Encoder(data_IR)
+
             feature_F_B = BaseFuseLayer(feature_I_B+feature_V_B)
-            feature_F_D = DetailFuseLayer(feature_I_D+feature_V_D)
+            feature_F_D = DetailFuseLayer(feature_I_D+feature_V_D) # 加在细节特征这里
             frefus,amp, pha = fre(data_VIS, data_IR)
-            freloss = cal_fre_loss(amp, pha, data_VIS, data_IR)
+            freloss = cal_fre_loss(amp, pha, data_VIS, data_IR,data_MASK)
             # 损失函数也加一下吧
             # （1，64，128，128）
             data_Fuse, feature_F = DIDF_Decoder(data_VIS, feature_F_B, feature_F_D, frefus)
@@ -173,6 +174,9 @@ for epoch in range(num_epochs):
             fusionloss, _,_  = criteria_fusion(data_VIS, data_IR, data_Fuse)
             
             loss = fusionloss + coeff_decomp * loss_decomp + freloss
+            # loss = fusionloss + coeff_decomp * loss_decomp + freloss + coeff_mse_loss_VF * mse_loss_V + coeff_mse_loss_IF * \
+            #        mse_loss_I # 改之后的损失函数
+
             loss.backward()
             nn.utils.clip_grad_norm_(
                 DIDF_Encoder.parameters(), max_norm=clip_grad_norm_value, norm_type=2)

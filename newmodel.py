@@ -102,13 +102,13 @@ class freFuse(nn.Module):
         # return fus, fus, fus
 
 #频域损失函数
-def cal_fre_loss(amp, pha, ir, vi):
+def cal_fre_loss(amp, pha, ir, vi,mask):
     real = amp * torch.cos(pha) + 1e-8
     imag = amp * torch.sin(pha) + 1e-8
     x = torch.complex(real, imag)
     x = torch.abs(torch.fft.irfftn(x, dim=(-2, -1)))
-    loss_ir = cc(x, ir)
-    loss_vi = cc(x, vi)
+    loss_ir = cc(x * mask, ir * mask)
+    loss_vi = cc(x * (1 - mask), vi * (1 - mask))
     return loss_ir + loss_vi
 
 def cc(img1, img2):

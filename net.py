@@ -127,44 +127,6 @@ class BaseFeatureExtraction(nn.Module):#Lite Transformer，Encode中的base
         return x
 
 
-# class InvertedResidualBlock(nn.Module):
-#     def __init__(self, inp, oup, expand_ratio):
-#         super(InvertedResidualBlock, self).__init__()
-#         hidden_dim = int(inp * expand_ratio)
-#         self.bottleneckBlock = nn.Sequential(
-#             # pw
-#             nn.Conv2d(inp, hidden_dim, 1, bias=False),
-#             # nn.BatchNorm2d(hidden_dim),
-#             nn.ReLU6(inplace=True),
-#             # dw
-#             nn.ReflectionPad2d(1),
-#             nn.Conv2d(hidden_dim, hidden_dim, 3, groups=hidden_dim, bias=False),
-#             # nn.BatchNorm2d(hidden_dim),
-#             nn.ReLU6(inplace=True),
-#             # pw-linear
-#             nn.Conv2d(hidden_dim, oup, 1, bias=False),
-#             # nn.BatchNorm2d(oup),
-#         )
-#     def forward(self, x):
-#         return self.bottleneckBlock(x)
-
-class SELayer(nn.Module):
-    def __init__(self, channel, reduction=16):
-        super(SELayer, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        return x * y.expand_as(x)
-
 class InvertedResidualBlock(nn.Module):
     def __init__(self, inp, oup, expand_ratio):
         super(InvertedResidualBlock, self).__init__()
@@ -172,30 +134,19 @@ class InvertedResidualBlock(nn.Module):
         self.bottleneckBlock = nn.Sequential(
             # pw
             nn.Conv2d(inp, hidden_dim, 1, bias=False),
-            nn.BatchNorm2d(hidden_dim),
+            # nn.BatchNorm2d(hidden_dim),
             nn.ReLU6(inplace=True),
             # dw
             nn.ReflectionPad2d(1),
             nn.Conv2d(hidden_dim, hidden_dim, 3, groups=hidden_dim, bias=False),
-            nn.BatchNorm2d(hidden_dim),
+            # nn.BatchNorm2d(hidden_dim),
             nn.ReLU6(inplace=True),
-            # SE layer
-            SELayer(hidden_dim),
             # pw-linear
             nn.Conv2d(hidden_dim, oup, 1, bias=False),
-            nn.BatchNorm2d(oup),
+            # nn.BatchNorm2d(oup),
         )
-        # 残差连接
-        if inp == oup:
-            self.residual_connection = True
-        else:
-            self.residual_connection = False
-
     def forward(self, x):
-        out = self.bottleneckBlock(x)
-        if self.residual_connection:
-            out = out + x
-        return out
+        return self.bottleneckBlock(x)
 
 class DetailNode(nn.Module):
     def __init__(self):
@@ -410,9 +361,9 @@ class Restormer_Encoder(nn.Module):
              
     def forward(self, inp_img):
         inp_enc_level1 = self.patch_embed(inp_img) #就是一个卷积（1，1，128，128）--》（1，64，128，128）
-        out_enc_level1 = self.encoder_level1(inp_enc_level1)
+        out_enc_level1 = self.encoder_level1(inp_enc_level1) # 经过四层TransformerBlock形状不变啊
         base_feature = self.baseFeature(out_enc_level1)
-        detail_feature = self.detailFeature(out_enc_level1)
+        detail_feature = self.detailFeature(out_enc_level1)# 经过基础模块和细节模块形状都不变 （1，64，128，128）
         return base_feature, detail_feature, out_enc_level1
 
 class Restormer_Decoder(nn.Module):#
