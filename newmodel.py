@@ -77,27 +77,36 @@ class Fuse_block(nn.Module):
     def forward(self, ir, vi, frefus):
         x = torch.cat([frefus], dim=1)  # n,c,h,w
         return x
+##########################################################################
+## Overlapped image patch embedding with 3x3 Conv
+class OverlapPatchEmbed(nn.Module):
+    def __init__(self, in_c=1, embed_dim=64, bias=False):
+        super(OverlapPatchEmbed, self).__init__()
+
+        self.proj = nn.Conv2d(in_c, embed_dim, kernel_size=3,
+                              stride=1, padding=1, bias=bias)
+
+    def forward(self, x):
+        x = self.proj(x)
+        return x
 
 class freFuse(nn.Module):
     def __init__(self):
         super().__init__()
-        self.channel = 8
+        self.channel = 64 # 原本是8
+        self.patch_embed = OverlapPatchEmbed()
         self.ff1 = AmpFuse()
         self.ff2 = PhaFuse()
         self.ifft = IFFT(self.channel)
         self.fus_block = Fuse_block(self.channel * 3)
 
-    def forward(self, ir, vi): # ir, vi: 没经过处理啊
+    def forward(self, ir, vi):# ir, vi: 没经过处理啊
         ir_amp, ir_pha = fft(ir)
         vi_amp, vi_pha = fft(vi)# 快速傅里叶变换
         amp = self.ff1(ir_amp, vi_amp) # 不是频率啊，是幅值和相位
         pha = self.ff2(ir_pha, vi_pha)
         frefus = self.ifft(amp, pha)
-        # # 这里vi和ir尺寸改一下
-        # ir = torch.randn(1, 64, 128, 128)
-        # vi = torch.randn(1, 64, 128, 128)
-        # fus = self.fus_block(ir, vi, frefus)
-        # fus = (fus - torch.min(fus)) / (torch.max(fus) - torch.min(fus))
+
         return frefus,amp,pha
         # return fus, fus, fus
 
@@ -107,7 +116,8 @@ def cal_fre_loss(amp, pha, ir, vi,mask):
     imag = amp * torch.sin(pha) + 1e-8
     x = torch.complex(real, imag)
     x = torch.abs(torch.fft.irfftn(x, dim=(-2, -1)))
-    loss_ir = cc(x * mask, ir * mask)
+    tag = x* mask
+    loss_ir = cc(x * mask, ir * mask) # x:(1,64,128,128)
     loss_vi = cc(x * (1 - mask), vi * (1 - mask))
     return loss_ir + loss_vi
 

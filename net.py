@@ -384,7 +384,7 @@ class Restormer_Decoder(nn.Module):#
                  ):
 
         super(Restormer_Decoder, self).__init__()
-        self.reduce_channel = nn.Conv2d(int(dim*2), int(dim), kernel_size=1, bias=bias)
+        self.reduce_channel = nn.Conv2d(int(dim*3), int(dim), kernel_size=1, bias=bias)
         self.encoder_level2 = nn.Sequential(*[TransformerBlock(dim=dim, num_heads=heads[1], ffn_expansion_factor=ffn_expansion_factor,
                                             bias=bias, LayerNorm_type=LayerNorm_type) for i in range(num_blocks[1])])#
         self.output = nn.Sequential(
@@ -394,20 +394,21 @@ class Restormer_Decoder(nn.Module):#
             nn.Conv2d(int(dim)//2, out_channels, kernel_size=3,
                       stride=1, padding=1, bias=bias),)
         self.sigmoid = nn.Sigmoid()
-        self.dechannelconv = nn.Conv2d(136, 128, kernel_size=1)
+        self.deconv = nn.Conv2d(136,128,kernel_size=1)
     def forward(self, inp_img, base_feature, detail_feature,frefuse):
         if frefuse is None:
             out_enc_level0 = torch.cat((base_feature, detail_feature), dim=1)  # 在通道维度上进行拼接
         else:
             out_enc_level0 = torch.cat((base_feature, detail_feature, frefuse), dim=1)
-            out_enc_level0 = self.dechannelconv(out_enc_level0)
-
+            # out_enc_level0 = self.deconv(out_enc_level0) # 还想改频域的占比呢，算了吧。
+# base_feature: detail_feature: frefuse = 64: 64: 8
         out_enc_level0 = self.reduce_channel(out_enc_level0)
         out_enc_level1 = self.encoder_level2(out_enc_level0)
         if inp_img is not None:
             out_enc_level1 = self.output(out_enc_level1) + inp_img
         else:
             out_enc_level1 = self.output(out_enc_level1)
+            out_enc_level1 = self.deconv(out_enc_level1)
         return self.sigmoid(out_enc_level1), out_enc_level0
     
 if __name__ == '__main__':
