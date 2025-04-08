@@ -121,7 +121,11 @@ class BaseFeatureExtraction(nn.Module):#Lite Transformer，Encode中的base
         self.norm2 = LayerNorm(dim, 'WithBias')
         self.mlp = Mlp(in_features=dim,
                        ffn_expansion_factor=ffn_expansion_factor,)
+        self.encoder_level1 = nn.Sequential(
+            *[TransformerBlock(dim=dim, num_heads=8, ffn_expansion_factor=ffn_expansion_factor,
+                               bias=False, LayerNorm_type='WithBias') for i in range(2)])
     def forward(self, x):
+        x = self.encoder_level1(x)
         x = x + self.attn(self.norm1(x))
         x = x + self.mlp(self.norm2(x))
         return x
@@ -361,7 +365,8 @@ class Restormer_Encoder(nn.Module):
              
     def forward(self, inp_img):
         inp_enc_level1 = self.patch_embed(inp_img) #就是一个卷积（1，1，128，128）--》（1，64，128，128）
-        out_enc_level1 = self.encoder_level1(inp_enc_level1) # 经过四层TransformerBlock形状不变啊
+        # out_enc_level1 = self.encoder_level1(inp_enc_level1) # 经过四层TransformerBlock形状不变啊
+        out_enc_level1 = inp_enc_level1 # 把4层TransformerBlock删除
         base_feature = self.baseFeature(out_enc_level1)
         detail_feature = self.detailFeature(out_enc_level1)# 经过基础模块和细节模块形状都不变 （1，64，128，128）
         return base_feature, detail_feature, out_enc_level1
